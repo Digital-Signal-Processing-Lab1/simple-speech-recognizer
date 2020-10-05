@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import struct
 import wave
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,59 +10,48 @@ import matplotlib.pyplot as plt
 # 如果先用低门限，噪音可能不会被滤除掉
 # 先用高门限确定是不是噪音，再用低门限确定语音开始
 
-# 符号函数定义
 def sgn(x):
     if x >= 0: return 1
     else: return -1
 
-# 计算每一帧的短时能量 一帧采样点个数为N
-def calEnergy(wave_data, N):
+def calEnergy(frames, N):
+    """ 返回每一帧的短时能量energy
+        frames: 帧信号矩阵
+        N: 一帧采样点个数
+    """
     energy = []
-    sum = 0
-    # [TODO: 本代码未考虑帧与帧之间交叠，对以下两个函数也是如此]
-    for i in range(len(wave_data)):
-        sum = sum + int(wave_data[i])**2
-        if (i + 1) % N == 0:
-            energy.append(sum)
-            sum = 0
-        elif i == len(wave_data) - 1:   #最后一帧
-            energy.append(sum)
+    energy = np.sum(frames**2, axis=1)  # 计算帧信号矩阵每一行的平方和
     return energy
 
-# 计算每一帧的短时幅度 一帧采样点个数为N
-def calAmplitude(wave_data, N):
+def calAmplitude(frames, N):
+    """ 返回每一帧的短时幅度amplitude
+        frames: 帧信号矩阵
+        N: 一帧采样点个数
+    """
     amplitude = []
-    sum = 0
-    for i in range(len(wave_data)):
-        sum = sum + np.abs(int(wave_data[i]))
-        if (i + 1) % N == 0:
-            amplitude.append(sum)
-            sum = 0
-        elif i == len(wave_data) - 1:   #最后一帧
-            amplitude.append(sum)
+    amplitude = np.sum(np.abs(frames), axis=1)  # 计算帧信号矩阵每一行的绝对值和
     return amplitude
 
-# 计算每一帧的短时过零率 一帧采样点个数为N
-def calZeroCrossingRate(wave_data, N):
+def calZeroCrossingRate(frames, N):
+    """ 返回每一帧的短时过零率zerocrossrate
+        frames: 帧信号矩阵
+        N: 一帧采样点个数
+    """
     zerocrossingrate = []
-    sum = 0
-    for i in range(len(wave_data)):
-        if i % N == 0:                  #从xn(1)计算到xn(N-1)
-            continue
-        sum = sum + np.abs(sgn(wave_data[i]) - sgn(wave_data[i - 1]))
-        if (i + 1) % N == 0:
-            zerocrossingrate.append(float(sum)/(2*N))
-            sum = 0
-        elif i == len(wave_data) - 1:   #最后一帧
-            zerocrossingrate.append(float(sum)/(2*N))
+    zerocrossingrate = np.sum(np.abs(frames[:, 1:N-1]-frames[:, 0:N-2]), axis=1)
     return zerocrossingrate
-
-# 利用短时能量/短时幅度，短时过零率，使用双门限法进行端点检测
+ 
 def detectEndPoint(wave_data, energy, zerocrossingrate):
-    # [TODO: 确定TH，TL，T0的值]
-    TH = np.mean(energy) / 4                  # 较高能量门限
-    TL = (np.mean(energy[:5])+TH/300)       # 较低能量门限
-    T0 = np.mean(zerocrossingrate[:5])      # 过零率门限
+    """ 利用短时能量/短时幅度，短时过零率，使用双门限法进行端点检测
+        返回端点对应的帧序号endpoint0
+        wave_data: 向量存储的语音信号
+        energy: 一帧采样点个数
+    """
+
+    # [TODO: 继续调试TH，TL，T0的值]
+    TH = np.mean(energy)                                    # 较高能量门限
+    TL = np.mean(energy[:5]) * 0.999 + TH * 0.001           # 较低能量门限
+    T0 = np.mean(zerocrossingrate[:5]) * 0.999 + TL * 0.001 # 过零率门限
     endpointH = []  # 存储高能量门限 端点帧序号
     endpointL = []  # 存储低能量门限 端点帧序号
     endpoint0 = []  # 存储过零率门限 端点帧序号
@@ -83,7 +73,7 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
     Y = np.array(energy).reshape(len(energy), 1)
 
     plt.figure(2)
-    plt.subplot(1, 3, 1)
+    plt.subplot(3, 1, 1)
     plt.plot(X, Y)
     plt.title("energy")
     for i in range(len(endpointH)):
@@ -107,7 +97,7 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
     
     X = np.arange(len(energy)).reshape(len(energy), 1)
     Y = np.array(energy).reshape(len(energy), 1)
-    plt.subplot(1, 3, 2)
+    plt.subplot(3, 1, 2)
     plt.plot(X, Y)
     plt.title("energy")
     for i in range(len(endpointL)):
@@ -131,7 +121,7 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
 
     X = np.arange(len(zerocrossingrate)).reshape(len(zerocrossingrate), 1)
     Y = np.array(zerocrossingrate).reshape(len(zerocrossingrate), 1)
-    plt.subplot(1, 3, 3)
+    plt.subplot(3, 1, 3)
     plt.plot(X, Y)
     plt.title("zerocrossingrate")
     for i in range(len(endpoint0)):
@@ -139,48 +129,115 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
 
     return endpoint0
 
-if __name__=="__main__":
-    import os
-    import sys
-    f = wave.open("./record.wav", "rb")
-    str_data = f.readframes(f.getnframes())
+def addWindow(wave_data, N, M, winfunc):
+    """ 将音频信号转化为帧并加窗
+        返回帧信号矩阵:维度(帧个数, N)以及帧数num_frame
+        wave_data: 待处理语音信号
+        N: 一帧采样点个数
+        M: 帧移（帧交叠间隔）
+        winfunc: 加窗函数
+    """
+    wav_length = len(wave_data)     # 音频信号总长度
+    inc = N - M                     # 相邻帧的间隔
+    if wav_length <= N:             # 若信号长度小于帧长度，则帧数num_frame=1
+        num_frame = 1
+    else:
+        num_frame = int(np.ceil((1.0*wav_length-N)/inc + 1))
+    pad_length = int((num_frame-1)*inc+N)               # 所有帧加起来铺平后长度
+    zeros = np.zeros((pad_length-wav_length, 1))        # 不够的长度用0填补
+    pad_wavedata = np.concatenate((wave_data, zeros))   # 填补后的信号
+    indices = np.tile(np.arange(0, N), (num_frame, 1)) + \
+              np.tile(np.arange(0, num_frame*inc, inc), (N, 1)).T   # 用来对pad_wavedata进行抽取，得到num_frame*N的矩阵
+    frames = pad_wavedata[indices].reshape(num_frame, N)            # 得到帧信号矩阵
+    window = np.tile(winfunc, (num_frame, 1))
+    return window * frames, num_frame                   # 加窗
+
+def readWav(filename):
+    """ 读取音频信号并转化为向量
+        返回向量存储的语音信号wave_data及参数信息params
+    """
+
+    # 读入wav文件
+    f = wave.open(filename, "rb")
+    params = f.getparams()  # nchannels: 声道数, sampwidth: 量化位数, framerate: 采样频率, nframes: 采样点数
+    nchannels, sampwidth, framerate, nframes = params[:4]
+    str_data = f.readframes(nframes)
 
     # 转成二字节数组形式（每个采样点占两个字节）
     wave_data = np.fromstring(str_data, dtype = np.short)
+    wave_data = np.reshape(wave_data, [nframes, nchannels]) # 转化为向量形式
     print("采样点数目：" + str(len(wave_data)))     #输出应为采样点数目
     f.close()
 
+    # 画图
     plt.figure(1)
     X = np.arange(len(wave_data)).reshape(len(wave_data), 1)
     Y = np.array(wave_data).reshape(len(wave_data), 1)
     plt.title("wave_data")
     plt.plot(X, Y)
 
-    # 端点检测
-    N = 256
-    M = None
-    energy = calEnergy(wave_data, N)
-    amplitude = calAmplitude(wave_data, N)
-    zerocrossingrate = calZeroCrossingRate(wave_data, N)
+    return wave_data, params
 
-    endpoint = detectEndPoint(wave_data, energy, zerocrossingrate)
+def writeWav(filename, wave_data, endpoint, params, N, M):
+    """ 将切割好的语音信号输出
+        生成多个切割好的wav文件
+    """
 
-    # 输出为 pcm 格式
-    # [TODO: 本代码未考虑帧与帧之间交叠]
+    # 输出为 wav 格式
     i = 0
     j = 1
+    inc = N - M                     # 相邻帧的间隔
+    nchannels, sampwidth, framerate = params[:3]
     while i < len(endpoint):
-        with open("./processed" + str(j) + ".pcm", "wb") as f:
-            for num in wave_data[endpoint[i] * N : endpoint[i+1] * N]:
-                f.write(num)
+        with wave.open(filename + str(j) + ".wav", "wb") as out_wave:
+            comptype = "NONE"
+            compname = "not compressed"
+            nframes = (endpoint[i+1] - endpoint[i]) * inc
+            out_wave.setparams((nchannels, sampwidth, framerate, nframes, comptype, compname))
+            for v in wave_data[endpoint[i] * inc : endpoint[i+1] * inc]:
+                out_wave.writeframes(struct.pack("h", int(v)))
+            out_wave.close()
         j = j + 1
         i = i + 2
 
+    # 画图
     plt.figure(3)
     X = np.arange(len(wave_data)).reshape(len(wave_data), 1)
     Y = np.array(wave_data).reshape(len(wave_data), 1)
     plt.plot(X, Y)
     for i in range(len(endpoint)):
-        plt.axvline(x=endpoint[i]*N, ymin=0, ymax=1, color="red")
+        plt.axvline(x=endpoint[i]*inc, ymin=0, ymax=1, color="red")
     plt.title("processed_data")
     plt.show()
+
+
+if __name__=="__main__":
+    import os
+    import sys
+    import struct
+    import scipy.signal as signal
+
+    # 读取音频信号
+    wave_data, params = readWav("./record.wav")
+
+    # 语音信号分帧加窗
+    N = 256         # 一帧时间 = N / framerate, 得 N 的范围: 160-480, 取最近2的整数次方 256
+    M = 128         # M 的范围应在 N 的 0-1/2
+    winfunc = signal.windows.hamming(N)     # 汉明窗
+    # winfunc = signal.windows.hanning(N)     # 海宁窗
+    # winfunc = 1                             # 矩形窗
+    frames, num_frame = addWindow(wave_data, N, M, winfunc)
+
+    # 时域特征值计算
+    energy = calEnergy(frames, N).reshape(1, num_frame)
+    amplitude = calAmplitude(frames, N).reshape(1, num_frame)
+    zerocrossingrate = calZeroCrossingRate(frames, N).reshape(1, num_frame)
+
+    # 端点检测
+    endpoint = detectEndPoint(wave_data, energy[0], zerocrossingrate[0])    # 利用短时能量
+    # endpoint = detectEndPoint(wave_data, amplitude[0], zerocrossingrate[0]) # 利用短时幅度
+    print(endpoint)
+
+    # 输出为 wav 格式
+    # [TODO: 规范化输出格式利于后续分类工作]
+    writeWav("./processed", wave_data, endpoint, params, N, M)
