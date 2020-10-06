@@ -46,7 +46,7 @@ for window_type in ["rect", "hamming", "hanning"]:
             try:
                 wave_data, params = VAD.readWav(wave_file)
             except:
-                raise_error("error at {} while reading.".format(wave_file))
+                raise_error("error at {} while reading.\n".format(wave_file))
                 continue
 
             frames, num_frame = VAD.addWindow(wave_data, N, M, winfunc)
@@ -59,7 +59,7 @@ for window_type in ["rect", "hamming", "hanning"]:
 
             if len(sorted_endpoint) %2 != 0:
                 raise_error("error at {} while using window {}. length of endpoints is not even\n"
-                            .format(window_type, wave_file))
+                            .format(wave_file, window_type))
                 continue
 
             VAD.writeWav(store, person_id, content, wave_data, sorted_endpoint, params, N, M, has_noisy=has_noisy)
