@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
 import struct
+import os
+import pandas as pd
 import wave
 import numpy as np
 import json
+import zipfile
 import matplotlib.pyplot as plt
+import pickle
 
 # 将record.wav输入信号 采样 切割 转化成若干processedi.pcm文件
 
@@ -11,7 +15,6 @@ import matplotlib.pyplot as plt
 # 如果先用低门限，噪音可能不会被滤除掉
 # 先用高门限确定是不是噪音，再用低门限确定语音开始
 
-wav_id = 1
 
 def sgn(x):
     if x >= 0: return 1
@@ -152,62 +155,41 @@ def readWav(filename):
 
     return wave_data, params
 
-def writeWav(prefix, person_identify, content, wave_data, endpoint, params, N, M,
+def writeWav(store, person_identify, content, wave_data, endpoint, params, N, M,
              window_style="rectangle", has_noisy=False):
     """ 将切割好的语音信号输出
         生成多个切割好的wav文件
     """
 
     # 输出为 wav 格式
-    global wav_id
     i = 0
-    j = 1
     inc = N - M                     # 相邻帧的间隔
     nchannels, sampwidth, framerate = params[:3]
 
-    if not os.path.exists(prefix):
-        os.makedirs(prefix)
-        wav_id = 0
-    else:
-        file_existed = os.listdir(prefix)
-        wav_id = int(np.max(list(map(int, file_existed)))+1)
-
     while i < len(endpoint):
-        store_path = os.path.join(prefix, "{}/".format(wav_id))
-        if not os.path.exists(store_path):
-            os.makedirs(store_path)
-        filename = os.path.join(store_path, "source.wav")
-        label_filename = os.path.join(store_path, "label.txt")
-        with wave.open(filename, "wb") as out_wave:
-            comptype = "NONE"
-            compname = "not compressed"
-            nframes = (endpoint[i+1] - endpoint[i]) * inc
-            out_wave.setparams((nchannels, sampwidth, framerate, nframes, comptype, compname))
-            for v in wave_data[endpoint[i] * inc : endpoint[i+1] * inc]:
-                out_wave.writeframes(struct.pack("h", int(v)))
-            out_wave.close()
-        with open(label_filename, "w") as f:
-            label = {"person_id": person_identify,
-                     "content": content,
-                     "window_style": window_style,
-                     "has_noisy": has_noisy}
-            json.dump(label, f)
-            f.close()
-        wav_id += 1
-        j = j + 1
+        for s, e in np.array(endpoint, dtype=int).reshape([-1, 2]):
+            d = []  # data, person, content
+            d.append(wave_data[s*inc: e*inc].reshape(-1))
+            d.append(person_identify)
+            d.append(content)
+            store.append(d)
+
         i = i + 2
+    return store
 
 def plot_wave(wave_data, endpoint, N, M):
     n = np.arange(wave_data.shape[0])
     plt.figure(figsize=(12, 3))
     plt.plot(n, wave_data)
-    for s, e in np.array(endpoint).reshape([-1, 2]):
-        plt.axvspan(s*(N-M), e*(N-M), color='gray', alpha=0.5)
+    # for s, e in np.array(endpoint).reshape([-1, 2]):
+    #     plt.axvspan(s*(N-M), e*(N-M), color='gray', alpha=0.5)
+    for i in endpoint:
+        plt.axvline(i*(N-M), color='r')
     plt.show()
 
 def unzip(from_file, to_dir):
     zip_file = zipfile.ZipFile(from_file)
-    if os.path.exists(to_dir):
+    if not os.path.exists(to_dir):
         os.makedirs(to_dir)
     for f in zip_file.namelist():
         zip_file.extract(f, to_dir)
@@ -215,9 +197,6 @@ def unzip(from_file, to_dir):
 
 
 if __name__=="__main__":
-    import os
-    import zipfile
-    import struct
     import scipy.signal as signal
 
     # 读取音频信号
@@ -243,9 +222,13 @@ if __name__=="__main__":
 
     sorted_endpoint = sorted(set(endpoint))
 
-    # plot_wave(wave_data, sorted_endpoint, N, M)
+    plot_wave(wave_data, endpoint, N, M)
 
     # 输出为 wav 格式
     # [TODO: 规范化输出格式利于后续分类工作]
-    writeWav("./dataset/processed/", "1", "0", wave_data, sorted_endpoint, params, N, M)
+    store = []
+    writeWav(store, "1", "0", wave_data, sorted_endpoint, params, N, M)
+    df = pd.DataFrame(store, columns=['wave_data', 'person_id', 'content'])
+    with open("./dataset/processed/test.pkl", "wb") as f:
+        pickle.dump(df, f)
     print("done")
