@@ -1,14 +1,20 @@
 # -*- coding: utf-8 -*-
 import struct
+import os
+import pandas as pd
 import wave
 import numpy as np
+import json
+import zipfile
 import matplotlib.pyplot as plt
+import pickle
 
 # 将record.wav输入信号 采样 切割 转化成若干processedi.pcm文件
 
 # 通过高门限的一定是需要截取的音，但是只用高门限，会漏掉开始的清音
 # 如果先用低门限，噪音可能不会被滤除掉
 # 先用高门限确定是不是噪音，再用低门限确定语音开始
+
 
 def sgn(x):
     if x >= 0: return 1
@@ -40,7 +46,9 @@ def calZeroCrossingRate(frames, N):
     zerocrossingrate = []
     zerocrossingrate = np.sum(np.abs(frames[:, 1:N-1]-frames[:, 0:N-2]), axis=1)
     return zerocrossingrate
- 
+
+
+# [TODO: detectEndPoint 有大量重复的值，且排布不是升序]
 def detectEndPoint(wave_data, energy, zerocrossingrate):
     """ 利用短时能量/短时幅度，短时过零率，使用双门限法进行端点检测
         返回端点对应的帧序号endpoint0
@@ -68,16 +76,6 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
         if flag == 1 and energy[i] < TH:
             endpointH.append(i)
             flag = 0
-    
-    X = np.arange(len(energy)).reshape(len(energy), 1)
-    Y = np.array(energy).reshape(len(energy), 1)
-
-    plt.figure(2)
-    plt.subplot(3, 1, 1)
-    plt.plot(X, Y)
-    plt.title("energy")
-    for i in range(len(endpointH)):
-        plt.axvline(x=endpointH[i], ymin=0, ymax=1, color="red")
 
     # 再利用较低能量门限 TL 扩展语音段
     for j in range(len(endpointH)):
@@ -94,14 +92,6 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
             while i > 0 and energy[i] >= TL:
                 i = i - 1
             endpointL.append(i)
-    
-    X = np.arange(len(energy)).reshape(len(energy), 1)
-    Y = np.array(energy).reshape(len(energy), 1)
-    plt.subplot(3, 1, 2)
-    plt.plot(X, Y)
-    plt.title("energy")
-    for i in range(len(endpointL)):
-        plt.axvline(x=endpointL[i], ymin=0, ymax=1, color="red")
 
     # 最后利用过零率门限 T0 得到最终语音段
     for j in range(len(endpointL)) :
@@ -118,14 +108,6 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
             while i > 0 and zerocrossingrate[i] >= T0:
                 i = i - 1
             endpoint0.append(i)
-
-    X = np.arange(len(zerocrossingrate)).reshape(len(zerocrossingrate), 1)
-    Y = np.array(zerocrossingrate).reshape(len(zerocrossingrate), 1)
-    plt.subplot(3, 1, 3)
-    plt.plot(X, Y)
-    plt.title("zerocrossingrate")
-    for i in range(len(endpoint0)):
-        plt.axvline(x=endpoint0[i], ymin=0, ymax=1, color="red")
 
     return endpoint0
 
@@ -144,8 +126,8 @@ def addWindow(wave_data, N, M, winfunc):
     else:
         num_frame = int(np.ceil((1.0*wav_length-N)/inc + 1))
     pad_length = int((num_frame-1)*inc+N)               # 所有帧加起来铺平后长度
-    zeros = np.zeros((pad_length-wav_length, 1))        # 不够的长度用0填补
-    pad_wavedata = np.concatenate((wave_data, zeros))   # 填补后的信号
+    zeros = np.zeros((pad_length-wav_length, 1)) # 不够的长度用0填补
+    pad_wavedata = np.concatenate((wave_data, zeros)) # 填补后的信号
     indices = np.tile(np.arange(0, N), (num_frame, 1)) + \
               np.tile(np.arange(0, num_frame*inc, inc), (N, 1)).T   # 用来对pad_wavedata进行抽取，得到num_frame*N的矩阵
     frames = pad_wavedata[indices].reshape(num_frame, N)            # 得到帧信号矩阵
@@ -166,59 +148,60 @@ def readWav(filename):
     # 转成二字节数组形式（每个采样点占两个字节）
     wave_data = np.fromstring(str_data, dtype = np.short)
     wave_data = np.reshape(wave_data, [nframes, nchannels]) # 转化为向量形式
+    if nchannels == 2:
+        wave_data = np.mean(wave_data, axis=1).reshape([-1, 1])
     print("采样点数目：" + str(len(wave_data)))     #输出应为采样点数目
     f.close()
 
-    # 画图
-    plt.figure(1)
-    X = np.arange(len(wave_data)).reshape(len(wave_data), 1)
-    Y = np.array(wave_data).reshape(len(wave_data), 1)
-    plt.title("wave_data")
-    plt.plot(X, Y)
-
     return wave_data, params
 
-def writeWav(filename, wave_data, endpoint, params, N, M):
+def writeWav(store, person_identify, content, wave_data, endpoint, params, N, M,
+             window_style="rectangle", has_noisy=False):
     """ 将切割好的语音信号输出
         生成多个切割好的wav文件
     """
 
     # 输出为 wav 格式
     i = 0
-    j = 1
     inc = N - M                     # 相邻帧的间隔
     nchannels, sampwidth, framerate = params[:3]
-    while i < len(endpoint):
-        with wave.open(filename + str(j) + ".wav", "wb") as out_wave:
-            comptype = "NONE"
-            compname = "not compressed"
-            nframes = (endpoint[i+1] - endpoint[i]) * inc
-            out_wave.setparams((nchannels, sampwidth, framerate, nframes, comptype, compname))
-            for v in wave_data[endpoint[i] * inc : endpoint[i+1] * inc]:
-                out_wave.writeframes(struct.pack("h", int(v)))
-            out_wave.close()
-        j = j + 1
-        i = i + 2
 
-    # 画图
-    plt.figure(3)
-    X = np.arange(len(wave_data)).reshape(len(wave_data), 1)
-    Y = np.array(wave_data).reshape(len(wave_data), 1)
-    plt.plot(X, Y)
-    for i in range(len(endpoint)):
-        plt.axvline(x=endpoint[i]*inc, ymin=0, ymax=1, color="red")
-    plt.title("processed_data")
+    while i < len(endpoint):
+        for s, e in np.array(endpoint, dtype=int).reshape([-1, 2]):
+            d = []  # data, person, content
+            d.append(wave_data[s*inc: e*inc].reshape(-1))
+            d.append(person_identify)
+            d.append(content)
+            store.append(d)
+
+        i = i + 2
+    return store
+
+def plot_wave(wave_data, endpoint, N, M):
+    n = np.arange(wave_data.shape[0])
+    plt.figure(figsize=(12, 3))
+    plt.plot(n, wave_data)
+    # for s, e in np.array(endpoint).reshape([-1, 2]):
+    #     plt.axvspan(s*(N-M), e*(N-M), color='gray', alpha=0.5)
+    for i in endpoint:
+        plt.axvline(i*(N-M), color='r')
     plt.show()
+
+def unzip(from_file, to_dir):
+    zip_file = zipfile.ZipFile(from_file)
+    if not os.path.exists(to_dir):
+        os.makedirs(to_dir)
+    for f in zip_file.namelist():
+        zip_file.extract(f, to_dir)
+    zip_file.close()
 
 
 if __name__=="__main__":
-    import os
-    import sys
-    import struct
     import scipy.signal as signal
 
     # 读取音频信号
-    wave_data, params = readWav("./record.wav")
+    # unzip("./dataset/raw/ren1.zip", "./dataset/unzip/")
+    wave_data, params = readWav("./dataset/unzip/ren1/0.wav")
 
     # 语音信号分帧加窗
     N = 256         # 一帧时间 = N / framerate, 得 N 的范围: 160-480, 取最近2的整数次方 256
@@ -236,8 +219,16 @@ if __name__=="__main__":
     # 端点检测
     endpoint = detectEndPoint(wave_data, energy[0], zerocrossingrate[0])    # 利用短时能量
     # endpoint = detectEndPoint(wave_data, amplitude[0], zerocrossingrate[0]) # 利用短时幅度
-    print(endpoint)
+
+    sorted_endpoint = sorted(set(endpoint))
+
+    plot_wave(wave_data, endpoint, N, M)
 
     # 输出为 wav 格式
     # [TODO: 规范化输出格式利于后续分类工作]
-    writeWav("./processed", wave_data, endpoint, params, N, M)
+    store = []
+    writeWav(store, "1", "0", wave_data, sorted_endpoint, params, N, M)
+    df = pd.DataFrame(store, columns=['wave_data', 'person_id', 'content'])
+    with open("./dataset/processed/test.pkl", "wb") as f:
+        pickle.dump(df, f)
+    print("done")
