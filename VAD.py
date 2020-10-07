@@ -57,12 +57,12 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
         wave_data: 向量存储的语音信号
         energy: 一帧采样点个数
     """
-    smooth_energy = signal.savgol_filter(energy, 99, 1)             # 利用savgol滤波器对能量和过零率进行平滑
-    smooth_zcr = signal.savgol_filter(zerocrossingrate, 99, 1)
+    smooth_energy = signal.savgol_filter(energy, 49, 1)             # 利用savgol滤波器对能量和过零率进行平滑
+    smooth_zcr = signal.savgol_filter(zerocrossingrate, 49, 1)
     
     TH = np.mean(smooth_energy)                                     # 较高能量门限
-    TL = np.mean(smooth_energy[:5]) * 0.9 + TH * 0.1                # 较低能量门限
-    T0 = np.mean(smooth_zcr[:5]) * 0.8 + np.max(smooth_zcr) * 0.2   # 过零率门限
+    TL = np.mean(smooth_energy[:5]) * 0.6 + TH * 0.4                # 较低能量门限
+    T0 = np.mean(smooth_zcr[:5]) * 0.55 + np.max(smooth_zcr) * 0.45   # 过零率门限
     endpointH = []  # 存储高能量门限 端点帧序号
     endpointL = []  # 存储低能量门限 端点帧序号
     endpoint0 = []  # 存储过零率门限 端点帧序号
@@ -199,42 +199,3 @@ def unzip(from_file, to_dir):
     for f in zip_file.namelist():
         zip_file.extract(f, to_dir)
     zip_file.close()
-
-
-if __name__ == "__main__":
-    import scipy.signal as signal
-
-    # 读取音频信号
-    # unzip("./dataset/raw/ren1.zip", "./dataset/unzip/")
-    wave_data, params = readWav("./dataset/unzip/ren2/5.wav")
-    # wave_data, params = readWav("./record.wav")
-
-    # 语音信号分帧加窗
-    N = 256         # 一帧时间 = N / framerate, 得 N 的范围: 160-480, 取最近2的整数次方 256
-    M = 128         # M 的范围应在 N 的 0-1/2
-    winfunc = signal.windows.hamming(N)     # 汉明窗
-    # winfunc = signal.windows.hanning(N)     # 海宁窗
-    # winfunc = 1                             # 矩形窗
-    frames, num_frame = addWindow(wave_data, N, M, winfunc)
-
-    # 时域特征值计算
-    energy = calEnergy(frames, N).reshape(1, num_frame)
-    amplitude = calAmplitude(frames, N).reshape(1, num_frame)
-    zerocrossingrate = calZeroCrossingRate(frames, N).reshape(1, num_frame)
-
-    # 端点检测
-    endpoint = detectEndPoint(
-        wave_data, energy[0], zerocrossingrate[0])    # 利用短时能量
-    # endpoint = detectEndPoint(wave_data, amplitude[0], zerocrossingrate[0]) # 利用短时幅度
-
-    sorted_endpoint = sorted(set(endpoint))
-
-    plot_wave(wave_data, endpoint, N, M)
-
-    # 输出为 wav 格式
-    store = []
-    writeWav(store, "1", "0", wave_data, sorted_endpoint, params, N, M)
-    df = pd.DataFrame(store, columns=['wave_data', 'person_id', 'content'])
-    with open("./dataset/processed/test.pkl", "wb") as f:
-        pickle.dump(df, f)
-    print("done")
