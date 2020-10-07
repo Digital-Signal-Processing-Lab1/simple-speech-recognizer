@@ -9,13 +9,21 @@ import utils
 epoch = 10
 data_dim = 1
 
-def reader()
+
+def reader():
+    def _reader():
+        pass
+    return _reader
+
 
 data = utils.load_pkl("../dataset/processed/rect.pkl")
 wave_data = data.wave_data[data.has_noisy is False]
 label = data.content
 wave_data, max_length = utils.padding_to_max(wave_data)
 x, y = su.shuffle(wave_data, label)
+
+train_reader = reader()
+
 
 stack_coder = model.StackCoder(data_dim)
 learning_rate = 0.1
