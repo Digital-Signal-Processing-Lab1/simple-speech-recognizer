@@ -9,7 +9,7 @@ N, M = 256, 128
 raw_file_path = "./dataset/raw/"
 unzip_path = "./dataset/unzip/"
 prefix = "./dataset/processed/"
-logfile = "./log"
+logfile = "./log.txt"
 
 log_f = open(logfile, "w")
 assert(log_f)
