@@ -21,3 +21,17 @@ def padding_to_max(data: pd.Series):
     max_length = np.max([len(w) for w in data])
     ret = padding_zeros_to(data, max_length)
     return ret, max_length
+
+
+def resample(source_signal: np.ndarray, source_fs: int, target_fs: int):
+    source = source_signal.flatten()
+    signal_length = source.shape[0]
+    signal_endure = (signal_length - 1) / source_fs
+    tp = np.linspace(0, signal_endure, signal_length)
+    target_length = int(signal_endure * target_fs)
+    t = np.linspace(0, signal_endure, target_length)
+    target = np.interp(t, tp, source)
+    target_signal = target.reshape([-1, 1])
+    return target_signal
+
+
