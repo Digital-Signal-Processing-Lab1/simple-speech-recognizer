@@ -1,11 +1,12 @@
 import VAD
 import os
-import sys
+import utils
 import pandas as pd
 import scipy.signal as signal
 import pickle
 
 N, M = 256, 128
+target_fs = 16000
 raw_file_path = "./dataset/raw/"
 unzip_path = "./dataset/unzip/"
 prefix = "./dataset/processed/"
@@ -49,6 +50,9 @@ for window_type in ["rect", "hamming", "hanning"]:
                 raise_error("error at {} while reading.\n".format(wave_file))
                 continue
 
+            source_fs = params[2]
+            if source_fs != target_fs:
+                wave_data = utils.resample(wave_data, source_fs, target_fs)
             frames, num_frame = VAD.addWindow(wave_data, N, M, winfunc)
             energy = VAD.calEnergy(frames, N).reshape(1, num_frame)
             amplitude = VAD.calAmplitude(frames, N).reshape(1, num_frame)
