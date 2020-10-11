@@ -179,7 +179,7 @@ def writeWav(store, person_identify, content, wave_data, endpoint, params, N, M,
             d.append(has_noisy)
             store.append(d)
 
-        i = i + 2
+            i = i + 2
     return store
 
 def plot_wave(wave_data, endpoint, N, M):
