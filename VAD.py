@@ -173,7 +173,7 @@ def writeWav(store, person_identify, content, wave_data, endpoint, params, N, M,
     while i < len(endpoint):
         for s, e in np.array(endpoint, dtype=int).reshape([-1, 2]):
             d = []  # data, person, content, noisy
-            d.append(wave_data[s*inc: e*inc].reshape(-1))
+            d.append(wave_data[s*inc: e*inc].copy().reshape(-1))
             d.append(person_identify)
             d.append(content)
             d.append(has_noisy)
