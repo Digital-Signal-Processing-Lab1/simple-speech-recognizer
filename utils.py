@@ -43,6 +43,8 @@ def plot_classify_result(label, real, predict, filename):
     for r, p in zip(real, predict):
         m[r, p] += 1
     plt.imshow(m)
+    plt.xticks(label)
+    plt.yticks(label)
     plt.xlabel("predict")
     plt.ylabel("real")
     plt.colorbar()
