@@ -39,9 +39,15 @@ for window_type in ["rect", "hamming", "hanning"]:
     store = []
     for ren in os.listdir(unzip_path):
         person_id = int(ren[3:])
+        if not isinstance(person_id, int):
+            raise_error("error at {}. not int person id\n".format(ren))
+            continue
         has_noisy = person_id > 100
         for wave_file in os.listdir(os.path.join(unzip_path, ren)):
-            content = wave_file[0]
+            content = int(wave_file[0])
+            if not isinstance(content, int):
+                raise_error("error at {}. not int content\n".format(ren))
+                continue
             wave_file = os.path.join(unzip_path, ren, wave_file)
             print("split {}".format(wave_file))
             try:
