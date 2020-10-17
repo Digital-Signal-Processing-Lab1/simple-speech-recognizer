@@ -61,7 +61,7 @@ for window_type in ["rect", "hamming", "hanning"]:
 
             sorted_endpoint = sorted(set(endpoint))
 
-            if len(sorted_endpoint) %2 != 0:
+            if len(sorted_endpoint) != 20:
                 raise_error("error at {} while using window {}. length of endpoints is not even\n"
                             .format(wave_file, window_type))
                 continue
