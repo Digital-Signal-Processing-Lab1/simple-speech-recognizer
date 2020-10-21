@@ -10,7 +10,9 @@ epoch = 10
 data_dim = 1
 
 
+# [TODO: 完成reader 函数]
 def reader():
+
     def _reader():
         pass
     return _reader

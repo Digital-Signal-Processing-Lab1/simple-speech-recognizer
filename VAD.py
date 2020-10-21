@@ -173,13 +173,13 @@ def writeWav(store, person_identify, content, wave_data, endpoint, params, N, M,
     while i < len(endpoint):
         for s, e in np.array(endpoint, dtype=int).reshape([-1, 2]):
             d = []  # data, person, content, noisy
-            d.append(wave_data[s*inc: e*inc].reshape(-1))
+            d.append(wave_data[s*inc: e*inc].copy().reshape(-1))
             d.append(person_identify)
             d.append(content)
             d.append(has_noisy)
             store.append(d)
 
-        i = i + 2
+            i = i + 2
     return store
 
 def plot_wave(wave_data, endpoint, N, M):
@@ -193,7 +193,11 @@ def plot_wave(wave_data, endpoint, N, M):
     plt.show()
 
 def unzip(from_file, to_dir):
-    zip_file = zipfile.ZipFile(from_file)
+    try:
+        zip_file = zipfile.ZipFile(from_file)
+    except zipfile.BadZipFile:
+        print("error!!!")
+        return
     if not os.path.exists(to_dir):
         os.makedirs(to_dir)
     for f in zip_file.namelist():
