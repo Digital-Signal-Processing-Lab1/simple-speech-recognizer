@@ -41,7 +41,7 @@ def plot_classify_result(label, real, predict, filename):
     n_label = len(label)
     m = np.zeros([n_label, n_label])
     for r, p in zip(real, predict):
-        m[r, p] += 1
+        m[int(r), int(p)] += 1
     plt.imshow(m)
     plt.xticks(label)
     plt.yticks(label)
