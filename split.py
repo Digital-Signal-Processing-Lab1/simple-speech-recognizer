@@ -39,6 +39,7 @@ for window_type in ["rect", "hamming", "hanning"]:
     store = []
     for ren in os.listdir(unzip_path):
         person_id = int(ren[3:])
+        if person_id == 4 or person_id == 32 or person_id == 6 or person_id == 9 or person_id > 100 : continue
         if not isinstance(person_id, int):
             raise_error("error at {}. not int person id\n".format(ren))
             continue
@@ -67,7 +68,7 @@ for window_type in ["rect", "hamming", "hanning"]:
 
             sorted_endpoint = sorted(set(endpoint))
 
-            if len(sorted_endpoint) %2 != 0:
+            if len(sorted_endpoint) != 20:
                 raise_error("error at {} while using window {}. length of endpoints is not even\n"
                             .format(wave_file, window_type))
                 continue

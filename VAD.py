@@ -111,7 +111,23 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
             while i > 0 and smooth_zcr[i] >= T0:
                 i = i - 1
             endpoint0.append(i)
+    # 用于在VAD.detectEndPoint()中调试代码
+    # plt.subplot(3, 1, 1)
+    # plt.plot(np.arange(len(smooth_energy)), smooth_energy)
+    # for i in endpointH: plt.axvline(x=i, color='r')
+    # plt.axhline(y=TH, color='g')
 
+    # plt.subplot(3, 1, 2)
+    # plt.plot(np.arange(len(smooth_energy)), smooth_energy)
+    # for i in endpointL: plt.axvline(x=i, color='r')
+    # plt.axhline(y=TL, color='g')
+
+    # plt.subplot(3, 1, 3)
+    # for i in endpoint0: plt.axvline(x=i, color='r')
+    # plt.plot(np.arange(len(smooth_zcr)), smooth_zcr)
+    # plt.axhline(y=T0, color='g')
+
+    # plt.show()            
     return endpoint0
 
 def addWindow(wave_data, N, M, winfunc):
