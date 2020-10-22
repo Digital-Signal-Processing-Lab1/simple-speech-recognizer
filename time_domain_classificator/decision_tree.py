@@ -48,8 +48,6 @@ with open("../dataset/processed/rect.pkl", "rb") as f:
     predict = model.predict(features)
     print(test_data.content.to_numpy())
     print(predict)
-    r2 = sm.r2_score(test_data.content, predict)
     print(sm.accuracy_score(test_data.content, predict))
-    print(r2)
     print(sm.f1_score(test_data.content.to_numpy(),predict, average=None))
     utils.plot_classify_result(range(10), test_data.content, predict, "result.png")
