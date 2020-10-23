@@ -45,10 +45,12 @@ def padding_to_max(data: pd.Series):
 
 def downsampling(array, dim):
     array_len = len(array)
+    ret = []
     if array_len >= dim:
         inc = int(array_len/dim)
-        ret = array[:array_len:inc]
-        return ret
+        for i in range(dim):
+            ret.append(array[i*inc])
+        return np.array(ret)
     else : return -1
 
 def plot_classify_result(label, real, predict, filename):
