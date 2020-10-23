@@ -10,7 +10,7 @@ def load_pkl(path) -> pd.DataFrame:
         return df
 
 
-def padding_zeros_to(data: pd.Series, length) -> np.array:
+def padding_zeros_to(data: pd.Series, length) -> np.ndarray:
     ret = np.zeros([len(data), length], dtype=float)
     for i in range(len(data)):
         t = np.array(data.iat[i]).reshape(-1)
