@@ -57,12 +57,15 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
         wave_data: 向量存储的语音信号
         energy: 一帧采样点个数
     """
-    smooth_energy = signal.savgol_filter(energy, 49, 1)             # 利用savgol滤波器对能量和过零率进行平滑
-    smooth_zcr = signal.savgol_filter(zerocrossingrate, 49, 1)
+    smooth_energy = energy
+    smooth_zcr = zerocrossingrate
+    smooth_energy = signal.savgol_filter(energy, 29, 1)             # 利用savgol滤波器对能量和过零率进行平滑
+    smooth_zcr = signal.savgol_filter(zerocrossingrate, 29, 1)
     
-    TH = np.mean(smooth_energy)                                     # 较高能量门限
-    TL = np.mean(smooth_energy[:5]) * 0.6 + TH * 0.4                # 较低能量门限
-    T0 = np.mean(smooth_zcr[:5]) * 0.55 + np.max(smooth_zcr) * 0.45   # 过零率门限
+    gap = int(len(wave_data)/16000)
+    TH = np.mean(smooth_energy) / 4                                    # 较高能量门限
+    TL = (np.mean(smooth_energy[:5]) / 5 + TH) / 4                # 较低能量门限
+    T0 = np.mean(smooth_zcr[:5]) * 0.95 + np.max(smooth_zcr) * 0.05   # 过零率门限
     endpointH = []  # 存储高能量门限 端点帧序号
     endpointL = []  # 存储低能量门限 端点帧序号
     endpoint0 = []  # 存储过零率门限 端点帧序号
@@ -70,14 +73,25 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
     # 先利用较高能量门限 TH 筛选语音段
     flag = 0
     for i in range(len(smooth_energy)):
-        # 左端点判断
-        if flag == 0 and smooth_energy[i] >= TH:
+        # 左端点判断，第一个左端点加入
+        if flag == 0 and smooth_energy[i] >= TH and len(endpointH) == 0:
             endpointH.append(i)
             flag = 1
-
-        # 右端点判断
-        if flag == 1 and smooth_energy[i] < TH:
+        # 左端点判断，距离前一个右端点距离远则加入
+        # 否则去掉这个左端点和前一个右端点，从上一个左端点重新计算，去除毛刺
+        elif flag == 0 and smooth_energy[i] >= TH and i-gap > endpointH[len(endpointH)-1]:
             endpointH.append(i)
+            flag = 1
+        elif flag == 0 and smooth_energy[i] >= TH and i-gap <= endpointH[len(endpointH)-1]:
+            endpointH = endpointH[:len(endpointH)-1]
+            flag = 1
+
+        # 右端点判断，检测帧长，太短则舍弃
+        if flag == 1 and smooth_energy[i] < TH:
+            if i - endpointH[len(endpointH)-1] <= gap:
+                endpointH = endpointH[:len(endpointH)-1]
+            else:
+                endpointH.append(i)
             flag = 0
 
     # 再利用较低能量门限 TL 扩展语音段
@@ -102,13 +116,13 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
 
         # 对右端点向右搜索
         if j % 2 == 1:
-            while i < len(smooth_zcr) and smooth_zcr[i] >= T0:
+            while i < len(smooth_zcr) and smooth_zcr[i] >= 3*T0:
                 i = i + 1
             endpoint0.append(i)
 
         # 对左端点向左搜索
         else:
-            while i > 0 and smooth_zcr[i] >= T0:
+            while i > 0 and smooth_zcr[i] >= 3*T0:
                 i = i - 1
             endpoint0.append(i)
     # 用于在VAD.detectEndPoint()中调试代码

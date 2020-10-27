@@ -141,6 +141,9 @@ for window_type in ["rect", "hamming", "hanning"]:
     # new_amplitude_ss = pca.transform(amplitude_ss)
     # new_zerocrossingrate_ss = pca.transform(zerocrossingrate_ss)
     # time_domain_f = np.concatenate([new_energy_ss, new_amplitude_ss, new_zerocrossingrate_ss], axis=1)
+    # pca = PCA(n_components=11)
+    # pca.fit(time_domain_f)
+    # time_domain_f = pca.transform(time_domain_f)
 
     # 开始训练
     x, y = su.shuffle(time_domain_f, np.array(raw_feature_df["label"]).astype(np.int).reshape(-1, 1), random_state=40)

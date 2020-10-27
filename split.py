@@ -39,7 +39,8 @@ for window_type in ["rect", "hamming", "hanning"]:
     store = []
     for ren in os.listdir(unzip_path):
         person_id = int(ren[3:])
-        if person_id == 4 or person_id == 32 or person_id == 6 or person_id == 9 or person_id > 100 : continue
+        # if person_id != 33 and person_id != 34 and person_id != 35 and person_id != 36 and person_id != 37 and person_id != 38 : continue
+        if person_id == 4 or person_id == 32 or person_id == 6 or person_id == 9 or person_id > 32 : continue
         if not isinstance(person_id, int):
             raise_error("error at {}. not int person id\n".format(ren))
             continue
