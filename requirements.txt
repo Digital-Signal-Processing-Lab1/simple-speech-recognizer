@@ -4,4 +4,6 @@ matplotlib
 pandas
 sklearn
 torch
-seaborn
+seabornl
+librosa
+dtw-python
