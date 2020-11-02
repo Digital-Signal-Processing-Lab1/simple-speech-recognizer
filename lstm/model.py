@@ -10,7 +10,7 @@ class Classify(nn.Module):
         super(Classify, self).__init__()
         self.pre_fc = nn.Linear(input_dim, hidden_size*4)
         self.lstm = nn.LSTM(input_size=hidden_size*4, hidden_size=hidden_size, num_layers=num_layers)
-        self.post_fc = nn.Linear(hidden_size, class_num)
+        self.post_fc = nn.Linear(hidden_size, class_num, bias=False)
 
     def forward(self, x, lengths):
         tmp = self.pre_fc(x)

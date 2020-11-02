@@ -5,7 +5,7 @@ import utils
 import numpy as np
 import pickle
 
-epoch = 1000
+epoch = 500
 data_dim = 1
 
 
@@ -54,9 +54,11 @@ model.test_data = wave_data[test_index]
 model.test_lengths = lengths[test_index]
 model.create_model(1, 20, 1)
 model.set_optim(0.01)
-model.train(epoch)
-model.test()
-model.save_model("./model/model1/")
-
+try:
+    model.train(epoch)
+    model.test()
+    model.save_model("./model/model2/")
+except KeyboardInterrupt:
+    model.save_model("./model/model2/")
 
 
