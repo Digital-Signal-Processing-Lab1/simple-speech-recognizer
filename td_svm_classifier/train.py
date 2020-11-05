@@ -18,6 +18,7 @@ import pickle
 import matplotlib.pyplot as plt
 
 N, M = 256, 128
+np.random.seed(40)
 file_path = "./dataset/processed/"
 
 def raw_feature_pre(store, energy, amplitude, zerocrossingrate, label):
@@ -51,7 +52,7 @@ def downsampling(array, dim):
         for i in range(dim):
             ret.append(array[i*inc])
         return np.array(ret)
-    else : return -1
+    else : return array
 
 def plot_classify_result(label, real, predict, filename):
     plt.figure(figsize=(8, 6))
@@ -146,10 +147,10 @@ for window_type in ["rect", "hamming", "hanning"]:
     # time_domain_f = pca.transform(time_domain_f)
 
     # 开始训练
-    x, y = su.shuffle(time_domain_f, np.array(raw_feature_df["label"]).astype(np.int).reshape(-1, 1), random_state=40)
+    x, y = su.shuffle(time_domain_f, np.array(raw_feature_df["label"]).astype(np.int).reshape(-1, 1))
     train_data, test_data, train_label, test_label = \
-    train_test_split(x, y, random_state=40, train_size=0.7, test_size=0.3)
-    classifier = svm.SVC(kernel='rbf', decision_function_shape='ovr', random_state=40)
+    train_test_split(x, y, train_size=0.8, test_size=0.2)
+    classifier = svm.SVC(kernel='rbf', decision_function_shape='ovr')
     classifier.fit(train_data, train_label.ravel())
     print("train accuracy :",classifier.score(train_data,train_label))
     print("test  accuracy :",classifier.score(test_data,test_label))
