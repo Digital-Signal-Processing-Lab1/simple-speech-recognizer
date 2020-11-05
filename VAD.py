@@ -16,13 +16,6 @@ import scipy.signal as signal
 # 如果先用低门限，噪音可能不会被滤除掉
 # 先用高门限确定是不是噪音，再用低门限确定语音开始
 
-
-def sgn(x):
-    if x >= 0:
-        return 1
-    else:
-        return -1
-
 def calEnergy(frames, N):
     """ 返回每一帧的短时能量energy
         frames: 帧信号矩阵
@@ -48,7 +41,7 @@ def calZeroCrossingRate(frames, N):
     """
     zerocrossingrate = []
     zerocrossingrate = np.sum(
-        np.abs(frames[:, 1:N-1]-frames[:, 0:N-2]), axis=1)
+        np.abs(np.sign(frames[:, 1:N-1])-np.sign(frames[:, 0:N-2])), axis=1)
     return zerocrossingrate
 
 def detectEndPoint(wave_data, energy, zerocrossingrate):
@@ -59,13 +52,13 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
     """
     smooth_energy = energy
     smooth_zcr = zerocrossingrate
-    smooth_energy = signal.savgol_filter(energy, 29, 1)             # 利用savgol滤波器对能量和过零率进行平滑
-    smooth_zcr = signal.savgol_filter(zerocrossingrate, 29, 1)
+    # smooth_energy = signal.savgol_filter(energy, 29, 1)             # 利用savgol滤波器对能量和过零率进行平滑
+    # smooth_zcr = signal.savgol_filter(zerocrossingrate, 29, 1)
     
-    gap = int(len(wave_data)/16000)
+    gap = int(len(wave_data)/20000)
     TH = np.mean(smooth_energy) / 4                                    # 较高能量门限
     TL = (np.mean(smooth_energy[:5]) / 5 + TH) / 4                # 较低能量门限
-    T0 = np.mean(smooth_zcr[:5]) * 0.95 + np.max(smooth_zcr) * 0.05   # 过零率门限
+    T0 = np.mean(smooth_zcr) / 2      # 过零率门限
     endpointH = []  # 存储高能量门限 端点帧序号
     endpointL = []  # 存储低能量门限 端点帧序号
     endpoint0 = []  # 存储过零率门限 端点帧序号
@@ -116,7 +109,7 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
 
         # 对右端点向右搜索
         if j % 2 == 1:
-            while i < len(smooth_zcr) and smooth_zcr[i] >= 3*T0:
+            while i < len(smooth_zcr) and smooth_zcr[i] >= T0:
                 i = i + 1
             endpoint0.append(i)
 
