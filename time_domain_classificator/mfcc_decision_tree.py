@@ -1,31 +1,25 @@
-import pickle
+from librosa.feature import mfcc
 import pandas as pd
 import numpy as np
 import sklearn.tree as st
 import sklearn.metrics as sm
 import sklearn.ensemble as se
-from sklearn.manifold import TSNE
 import utils
 import matplotlib.pyplot as plt
+import pickle
 
 
-def get_features(wave_data: pd.Series, m, step):
+def get_features(wave_data: pd.Series, n_mfcc):
     """
     feature
     """
     x = wave_data.apply(lambda d: (d-np.mean(d))/(np.std(d)))
     # x = wave_data
     x, max_length = utils.padding_to_max(x)
-    n = int((max_length-m)/step) + 1
-    indices = np.tile(np.arange(0, m), (n, 1)) +\
-        np.tile(np.arange(0, n*step, step), (m, 1)).T
-    features = np.empty([x.shape[0], 3, n], dtype=float)
+    features = []
     for i in range(x.shape[0]):
-        windows = x[i][indices]
-        features[i, 0] = np.mean(np.abs(windows), axis=1)
-        features[i, 1] = np.mean(np.power(windows, 2), axis=1)
-        features[i, 2] = np.mean(np.abs(windows[:, 1:m-1]-windows[:, 0:m-2]), axis=1)
-    return features.reshape([len(wave_data), -1])
+        features.append(mfcc(x[i], sr=16000, n_mfcc=n_mfcc).reshape(-1)[1:])
+    return np.array(features)
 
 
 for win_type in ["rect", "hamming", "hanning"]:
@@ -40,8 +34,8 @@ for win_type in ["rect", "hamming", "hanning"]:
             train = [i for i in persons_id if i != test]
             train_data = df.apply(lambda d: d.person_id != test, axis=1)
             test_data = df.apply(lambda d: d.person_id == test, axis=1)
-            features = get_features(df.wave_data, 200, 200)
-            model = se.ExtraTreesClassifier(max_depth=6)
+            features = get_features(df.wave_data, 20)
+            model = se.ExtraTreesClassifier(max_depth=2)
             model.fit(features[train_data], df[train_data].content)
             print("train_predict", sm.accuracy_score(df[train_data].content, model.predict(features[train_data])))
             predicts.append(model.predict(features[test_data]))
@@ -52,7 +46,3 @@ for win_type in ["rect", "hamming", "hanning"]:
         print(sm.f1_score(labels.reshape(-1), predicts.reshape(-1), average=None))
         utils.plot_classify_result(range(10), labels.reshape(-1), predicts.reshape(-1), "result{}.png".format(win_type))
         plt.close()
-        # tsne = TSNE()
-        # x = tsne.fit_transform(features, df.content)
-        # plt.scatter(x[:, 0], x[:, 1], c=df.content)
-        # plt.show()
