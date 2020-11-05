@@ -3,53 +3,56 @@ import pandas as pd
 import numpy as np
 import sklearn.tree as st
 import sklearn.metrics as sm
+import sklearn.ensemble as se
+from sklearn.manifold import TSNE
 import utils
+import matplotlib.pyplot as plt
 
 
-def get_features(wave_data: pd.Series):
+def get_features(wave_data: pd.Series, m, step):
     """
-    feature: abs, mean, std, diff_mean, diff_std
+    feature
     """
-    feature_dim = 9
-    n = len(wave_data)
-    features = np.empty([n, feature_dim])
-    for i, d in enumerate(wave_data):
-        diff_d = np.diff(d)
-        diff_diff_d = np.diff(diff_d)
-        features[i] = [
-            np.sum(np.abs(d)),
-            np.mean(d),
-            np.var(d),
-            np.sum(np.abs(diff_d)),
-            np.mean(diff_d),
-            np.var(diff_d),
-            np.sum(np.abs(diff_diff_d)),
-            np.mean(diff_diff_d),
-            np.var(diff_diff_d),
-        ]
-    return features
+    x = wave_data.apply(lambda d: (d-np.mean(d))/(np.std(d)))
+    # x = wave_data
+    x, max_length = utils.padding_to_max(x)
+    n = int((max_length-m)/step) + 1
+    indices = np.tile(np.arange(0, m), (n, 1)) +\
+        np.tile(np.arange(0, n*step, step), (m, 1)).T
+    features = np.empty([x.shape[0], 3, n], dtype=float)
+    for i in range(x.shape[0]):
+        windows = x[i][indices]
+        features[i, 0] = np.mean(np.abs(windows), axis=1)
+        features[i, 1] = np.mean(np.power(windows, 2), axis=1)
+        features[i, 2] = np.mean(np.abs(windows[:, 1:m-1]-windows[:, 0:m-2]), axis=1)
+    return features.reshape([len(wave_data), -1])
 
 
-test = [1, 2]
-with open("../dataset/processed/rect.pkl", "rb") as f:
-    df = pickle.load(f)
-    df = df[~df.has_noisy]
-    persons_id = set(df.person_id)
-    print(persons_id)
-    contents = set(df.content)
-    train = [i for i in persons_id if i not in test]
-    train_data = df[df.apply(lambda d: d.person_id not in test, axis=1)]
-    test_data = df[df.apply(lambda d: d.person_id in test, axis=1)]
-    features = get_features(train_data.wave_data)
-    model = st.DecisionTreeClassifier()
-    model.fit(features, train_data.content)
-    print(model.feature_importances_)
-    features = get_features(test_data.wave_data)
-    predict = model.predict(features)
-    print(test_data.content.to_numpy())
-    print(predict)
-    r2 = sm.r2_score(test_data.content, predict)
-    print(sm.accuracy_score(test_data.content, predict))
-    print(r2)
-    print(sm.f1_score(test_data.content.to_numpy(),predict, average=None))
-    utils.plot_classify_result(range(10), test_data.content, predict, "result.png")
+for win_type in ["rect", "hamming", "hanning"]:
+    with open("../dataset/processed/{}.pkl".format(win_type), "rb") as f:
+        df = pickle.load(f)
+        df = df[~df.has_noisy]
+        persons_id = set(df.person_id)
+        predicts = []
+        labels = []
+        for test in persons_id:
+            contents = set(df.content)
+            train = [i for i in persons_id if i != test]
+            train_data = df.apply(lambda d: d.person_id != test, axis=1)
+            test_data = df.apply(lambda d: d.person_id == test, axis=1)
+            features = get_features(df.wave_data, 200, 200)
+            model = se.ExtraTreesClassifier(max_depth=6)
+            model.fit(features[train_data], df[train_data].content)
+            print("train_predict", sm.accuracy_score(df[train_data].content, model.predict(features[train_data])))
+            predicts.append(model.predict(features[test_data]))
+            labels.append(df[test_data].content)
+        labels = np.array(labels)
+        predicts = np.array(predicts)
+        print(sm.accuracy_score(labels.reshape(-1), predicts.reshape(-1)))
+        print(sm.f1_score(labels.reshape(-1), predicts.reshape(-1), average=None))
+        utils.plot_classify_result(range(10), labels.reshape(-1), predicts.reshape(-1), "result{}.png".format(win_type))
+        plt.close()
+        # tsne = TSNE()
+        # x = tsne.fit_transform(features, df.content)
+        # plt.scatter(x[:, 0], x[:, 1], c=df.content)
+        # plt.show()

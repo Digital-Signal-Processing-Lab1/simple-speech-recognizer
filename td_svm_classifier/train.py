@@ -45,10 +45,12 @@ def padding_to_max(data: pd.Series):
 
 def downsampling(array, dim):
     array_len = len(array)
+    ret = []
     if array_len >= dim:
         inc = int(array_len/dim)
-        ret = array[:array_len:inc]
-        return ret
+        for i in range(dim):
+            ret.append(array[i*inc])
+        return np.array(ret)
     else : return -1
 
 def plot_classify_result(label, real, predict, filename):
@@ -139,6 +141,9 @@ for window_type in ["rect", "hamming", "hanning"]:
     # new_amplitude_ss = pca.transform(amplitude_ss)
     # new_zerocrossingrate_ss = pca.transform(zerocrossingrate_ss)
     # time_domain_f = np.concatenate([new_energy_ss, new_amplitude_ss, new_zerocrossingrate_ss], axis=1)
+    # pca = PCA(n_components=11)
+    # pca.fit(time_domain_f)
+    # time_domain_f = pca.transform(time_domain_f)
 
     # 开始训练
     x, y = su.shuffle(time_domain_f, np.array(raw_feature_df["label"]).astype(np.int).reshape(-1, 1), random_state=40)
