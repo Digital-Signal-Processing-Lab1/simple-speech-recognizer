@@ -2,6 +2,7 @@ from librosa.feature import mfcc
 import pandas as pd
 import numpy as np
 import sklearn.tree as st
+import sklearn.decomposition as sd
 import sklearn.metrics as sm
 import sklearn.ensemble as se
 import utils
@@ -18,7 +19,11 @@ def get_features(wave_data: pd.Series, n_mfcc):
     x, max_length = utils.padding_to_max(x)
     features = []
     for i in range(x.shape[0]):
-        features.append(mfcc(x[i], sr=16000, n_mfcc=n_mfcc).reshape(-1)[1:])
+        t1 = mfcc(x[i], sr=16000, n_mfcc=n_mfcc)
+        t2 = utils.diff(t1, axis=0)
+        t3 = utils.diff(t1, axis=0, delta=2)
+        t = np.concatenate([t1.T, t2.T, t3.T], axis=1).flatten()
+        features.append(t)
     return np.array(features)
 
 
