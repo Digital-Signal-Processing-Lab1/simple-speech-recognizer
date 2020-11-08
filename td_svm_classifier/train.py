@@ -6,6 +6,7 @@ sys.path.append("./")
 from sklearn import svm
 import sklearn.utils as su
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import RepeatedKFold
 from sklearn.decomposition import PCA
 import sklearn.metrics as sm
 import scipy.signal as signal
@@ -18,7 +19,7 @@ import pickle
 import matplotlib.pyplot as plt
 
 N, M = 256, 128
-np.random.seed(40)
+# np.random.seed(24)
 file_path = "./dataset/processed/"
 
 def raw_feature_pre(store, energy, amplitude, zerocrossingrate, label):
@@ -45,14 +46,15 @@ def padding_to_max(data: pd.Series):
     return data, max_length
 
 def downsampling(array, dim):
-    array_len = len(array)
-    ret = []
+    array_len = array.shape[1]
+    array = signal.savgol_filter(array, 59, 11, axis=1)
     if array_len >= dim:
         inc = int(array_len/dim)
-        for i in range(dim):
-            ret.append(array[i*inc])
-        return np.array(ret)
-    else : return array
+        index = [i*inc for i in range(dim)]
+        return array[:, index]
+    else: 
+        array = np.concatenate([array, np.zeros((array.shape[0], dim-array_len))], axis=1)
+        return array
 
 def plot_classify_result(label, real, predict, filename):
     plt.figure(figsize=(8, 6))
@@ -92,11 +94,8 @@ for window_type in ["rect", "hamming", "hanning"]:
     for i in range(len(wave_data)):
         frames, num_frame = VAD.addWindow(wave_data[i].reshape(-1, 1), N, M, winfunc)
         energy = VAD.calEnergy(frames, N).reshape(1, num_frame).flatten()
-        energy = downsampling(energy, 33)
         amplitude = VAD.calAmplitude(frames, N).reshape(1, num_frame).flatten()
-        amplitude = downsampling(amplitude, 33)
         zerocrossingrate = VAD.calZeroCrossingRate(frames, N).reshape(1, num_frame).flatten()
-        zerocrossingrate = downsampling(zerocrossingrate, 33)
         raw_feature_pre(store, energy, amplitude, zerocrossingrate, label[i])
     raw_feature_df = pd.DataFrame(store, columns=["energy", "amplitude", "zerocrossingrate", "label"])
     raw_feature_df, max_length = padding_to_max(raw_feature_df)
@@ -111,8 +110,13 @@ for window_type in ["rect", "hamming", "hanning"]:
     energy_ss = np.array(energy_ss).reshape(-1, max_length)
     amplitude_ss = np.array(amplitude_ss).reshape(-1, max_length)
     zerocrossingrate_ss = np.array(zerocrossingrate_ss).reshape(-1, max_length)
-    time_domain_f = np.concatenate([energy_ss, amplitude_ss, zerocrossingrate_ss], axis=1)
-    time_domain_f = time_domain_f / np.max(time_domain_f)
+    dim = 99
+    new_energy_ss = downsampling(energy_ss, dim)
+    new_amplitude_ss = downsampling(amplitude_ss, dim)
+    new_zerocrossingrate_ss = downsampling(zerocrossingrate_ss, dim)
+    dim = 99
+    time_domain_f = np.concatenate([new_energy_ss, new_amplitude_ss, new_zerocrossingrate_ss], axis=1)
+    # time_domain_f = downsampling(time_domain_f, dim)
 
     # # 开始填零
     # for i in range(len(wave_data)):
@@ -148,18 +152,30 @@ for window_type in ["rect", "hamming", "hanning"]:
 
     # 开始训练
     x, y = su.shuffle(time_domain_f, np.array(raw_feature_df["label"]).astype(np.int).reshape(-1, 1))
-    train_data, test_data, train_label, test_label = \
-    train_test_split(x, y, train_size=0.8, test_size=0.2)
-    classifier = svm.SVC(kernel='rbf', decision_function_shape='ovr')
-    classifier.fit(train_data, train_label.ravel())
-    print("train accuracy :",classifier.score(train_data,train_label))
-    print("test  accuracy :",classifier.score(test_data,test_label))
-    test = test_label.reshape(1, -1).flatten()
-    predict = classifier.predict(test_data)
-    r2 = sm.r2_score(test, predict)
-    print("r2 score :", r2)
-    print("f1 score :", sm.f1_score(test, predict, average=None))
+    kf = RepeatedKFold(n_splits=5, n_repeats=5)
+    train_acc = []
+    test_acc = []
+    f1_score = []
+    max_accuracy = 0
+    for train_index, test_index in kf.split(x):
+        train_data, test_data, train_label, test_label = \
+        x[train_index], x[test_index], y[train_index], y[test_index]
+        classifier = svm.SVC(kernel='rbf', decision_function_shape='ovr')
+        classifier.fit(train_data, train_label.ravel())
+        train_acc.append(classifier.score(train_data,train_label))
+        acc = classifier.score(test_data,test_label)
+        test_acc.append(acc)
+        test_m = test_label.reshape(1, -1).flatten()
+        predict_m = classifier.predict(test_data)
+        f1_score.append(sm.f1_score(test_m, predict_m, average=None))
+        if acc > max_accuracy:
+            test = test_label.reshape(1, -1).flatten()
+            predict = classifier.predict(test_data)
+            max_accuracy = acc
+
+    print("train accuracy :",np.mean(np.array(train_acc)))
+    print("test  accuracy :",np.mean(np.array(test_acc)))
+    print("f1 score :", np.mean(np.array(f1_score), axis=0))
     print("plotting data...")
     plot_classify_result(range(10), test, predict, "./td_svm_classifier/result_"+window_type+".png")
-
     print("done")
