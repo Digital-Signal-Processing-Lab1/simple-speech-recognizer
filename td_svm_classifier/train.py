@@ -90,35 +90,7 @@ for window_type in ["rect", "hamming", "hanning"]:
     label = df.content
     store = []
 
-    # 减采样降维
-    for i in range(len(wave_data)):
-        frames, num_frame = VAD.addWindow(wave_data[i].reshape(-1, 1), N, M, winfunc)
-        energy = VAD.calEnergy(frames, N).reshape(1, num_frame).flatten()
-        amplitude = VAD.calAmplitude(frames, N).reshape(1, num_frame).flatten()
-        zerocrossingrate = VAD.calZeroCrossingRate(frames, N).reshape(1, num_frame).flatten()
-        raw_feature_pre(store, energy, amplitude, zerocrossingrate, label[i])
-    raw_feature_df = pd.DataFrame(store, columns=["energy", "amplitude", "zerocrossingrate", "label"])
-    raw_feature_df, max_length = padding_to_max(raw_feature_df)
-
-    # 开始降维
-    # time_domain_f 为特征向量
-    energy_ss, amplitude_ss ,zerocrossingrate_ss = [], [], []
-    for i in range(len(raw_feature_df)):
-        energy_ss.append(raw_feature_df["energy"][i])
-        amplitude_ss.append(raw_feature_df["amplitude"][i])
-        zerocrossingrate_ss.append(raw_feature_df["zerocrossingrate"][i])
-    energy_ss = np.array(energy_ss).reshape(-1, max_length)
-    amplitude_ss = np.array(amplitude_ss).reshape(-1, max_length)
-    zerocrossingrate_ss = np.array(zerocrossingrate_ss).reshape(-1, max_length)
-    dim = 99
-    new_energy_ss = downsampling(energy_ss, dim)
-    new_amplitude_ss = downsampling(amplitude_ss, dim)
-    new_zerocrossingrate_ss = downsampling(zerocrossingrate_ss, dim)
-    dim = 99
-    time_domain_f = np.concatenate([new_energy_ss, new_amplitude_ss, new_zerocrossingrate_ss], axis=1)
-    # time_domain_f = downsampling(time_domain_f, dim)
-
-    # # 开始填零
+    # # 减采样降维
     # for i in range(len(wave_data)):
     #     frames, num_frame = VAD.addWindow(wave_data[i].reshape(-1, 1), N, M, winfunc)
     #     energy = VAD.calEnergy(frames, N).reshape(1, num_frame).flatten()
@@ -130,7 +102,6 @@ for window_type in ["rect", "hamming", "hanning"]:
 
     # # 开始降维
     # # time_domain_f 为特征向量
-    # pca = PCA(n_components=33)
     # energy_ss, amplitude_ss ,zerocrossingrate_ss = [], [], []
     # for i in range(len(raw_feature_df)):
     #     energy_ss.append(raw_feature_df["energy"][i])
@@ -139,16 +110,45 @@ for window_type in ["rect", "hamming", "hanning"]:
     # energy_ss = np.array(energy_ss).reshape(-1, max_length)
     # amplitude_ss = np.array(amplitude_ss).reshape(-1, max_length)
     # zerocrossingrate_ss = np.array(zerocrossingrate_ss).reshape(-1, max_length)
-    # pca.fit(energy_ss)
-    # pca.fit(amplitude_ss)
-    # pca.fit(zerocrossingrate_ss)
-    # new_energy_ss = pca.transform(energy_ss)
-    # new_amplitude_ss = pca.transform(amplitude_ss)
-    # new_zerocrossingrate_ss = pca.transform(zerocrossingrate_ss)
+    # dim = 99
+    # new_energy_ss = downsampling(energy_ss, dim)
+    # new_amplitude_ss = downsampling(amplitude_ss, dim)
+    # new_zerocrossingrate_ss = downsampling(zerocrossingrate_ss, dim)
+    # dim = 99
     # time_domain_f = np.concatenate([new_energy_ss, new_amplitude_ss, new_zerocrossingrate_ss], axis=1)
-    # pca = PCA(n_components=11)
-    # pca.fit(time_domain_f)
-    # time_domain_f = pca.transform(time_domain_f)
+    # # time_domain_f = downsampling(time_domain_f, dim)
+
+    # 开始填零
+    for i in range(len(wave_data)):
+        frames, num_frame = VAD.addWindow(wave_data[i].reshape(-1, 1), N, M, winfunc)
+        energy = VAD.calEnergy(frames, N).reshape(1, num_frame).flatten()
+        amplitude = VAD.calAmplitude(frames, N).reshape(1, num_frame).flatten()
+        zerocrossingrate = VAD.calZeroCrossingRate(frames, N).reshape(1, num_frame).flatten()
+        raw_feature_pre(store, energy, amplitude, zerocrossingrate, label[i])
+    raw_feature_df = pd.DataFrame(store, columns=["energy", "amplitude", "zerocrossingrate", "label"])
+    raw_feature_df, max_length = padding_to_max(raw_feature_df)
+
+    # 开始降维
+    # time_domain_f 为特征向量
+    pca = PCA(n_components=33)
+    energy_ss, amplitude_ss ,zerocrossingrate_ss = [], [], []
+    for i in range(len(raw_feature_df)):
+        energy_ss.append(raw_feature_df["energy"][i])
+        amplitude_ss.append(raw_feature_df["amplitude"][i])
+        zerocrossingrate_ss.append(raw_feature_df["zerocrossingrate"][i])
+    energy_ss = np.array(energy_ss).reshape(-1, max_length)
+    amplitude_ss = np.array(amplitude_ss).reshape(-1, max_length)
+    zerocrossingrate_ss = np.array(zerocrossingrate_ss).reshape(-1, max_length)
+    pca.fit(energy_ss)
+    pca.fit(amplitude_ss)
+    pca.fit(zerocrossingrate_ss)
+    new_energy_ss = pca.transform(energy_ss)
+    new_amplitude_ss = pca.transform(amplitude_ss)
+    new_zerocrossingrate_ss = pca.transform(zerocrossingrate_ss)
+    time_domain_f = np.concatenate([new_energy_ss, new_amplitude_ss, new_zerocrossingrate_ss], axis=1)
+    pca = PCA(n_components=11)
+    pca.fit(time_domain_f)
+    time_domain_f = pca.transform(time_domain_f)
 
     # 开始训练
     x, y = su.shuffle(time_domain_f, np.array(raw_feature_df["label"]).astype(np.int).reshape(-1, 1))
