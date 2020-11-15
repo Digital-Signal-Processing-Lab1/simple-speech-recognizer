@@ -16,13 +16,6 @@ import scipy.signal as signal
 # 如果先用低门限，噪音可能不会被滤除掉
 # 先用高门限确定是不是噪音，再用低门限确定语音开始
 
-
-def sgn(x):
-    if x >= 0:
-        return 1
-    else:
-        return -1
-
 def calEnergy(frames, N):
     """ 返回每一帧的短时能量energy
         frames: 帧信号矩阵
@@ -45,10 +38,15 @@ def calZeroCrossingRate(frames, N):
     """ 返回每一帧的短时过零率zerocrossrate
         frames: 帧信号矩阵
         N: 一帧采样点个数
+        T: 过滤低频
     """
+    TH = np.mean(np.abs(frames))
+    T = (np.mean(np.abs(frames[0])) + TH*4) / 4          
+
     zerocrossingrate = []
-    zerocrossingrate = np.sum(
-        np.abs(frames[:, 1:N-1]-frames[:, 0:N-2]), axis=1)
+    zerocrossingrate = np.mean(
+        np.abs(np.sign(frames[:, 1:N-1]-T)-np.sign(frames[:, 0:N-2]-T))+
+        np.abs(np.sign(frames[:, 1:N-1]+T)-np.sign(frames[:, 0:N-2]+T)), axis=1)
     return zerocrossingrate
 
 def detectEndPoint(wave_data, energy, zerocrossingrate):
@@ -57,12 +55,15 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
         wave_data: 向量存储的语音信号
         energy: 一帧采样点个数
     """
-    smooth_energy = signal.savgol_filter(energy, 49, 1)             # 利用savgol滤波器对能量和过零率进行平滑
-    smooth_zcr = signal.savgol_filter(zerocrossingrate, 49, 1)
+    smooth_energy = energy
+    smooth_zcr = zerocrossingrate
+    # smooth_energy = signal.savgol_filter(energy, 29, 1)             # 利用savgol滤波器对能量和过零率进行平滑
+    # smooth_zcr = signal.savgol_filter(zerocrossingrate, 29, 1)
     
-    TH = np.mean(smooth_energy)                                     # 较高能量门限
-    TL = np.mean(smooth_energy[:5]) * 0.6 + TH * 0.4                # 较低能量门限
-    T0 = np.mean(smooth_zcr[:5]) * 0.55 + np.max(smooth_zcr) * 0.45   # 过零率门限
+    gap = int(len(wave_data)/20000)
+    TH = np.mean(smooth_energy) / 4                                    # 较高能量门限
+    TL = (np.mean(smooth_energy[:5]) / 5 + TH) / 4                # 较低能量门限
+    T0 = np.mean(smooth_zcr) / 4      # 过零率门限
     endpointH = []  # 存储高能量门限 端点帧序号
     endpointL = []  # 存储低能量门限 端点帧序号
     endpoint0 = []  # 存储过零率门限 端点帧序号
@@ -70,14 +71,25 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
     # 先利用较高能量门限 TH 筛选语音段
     flag = 0
     for i in range(len(smooth_energy)):
-        # 左端点判断
-        if flag == 0 and smooth_energy[i] >= TH:
+        # 左端点判断，第一个左端点加入
+        if flag == 0 and smooth_energy[i] >= TH and len(endpointH) == 0:
             endpointH.append(i)
             flag = 1
-
-        # 右端点判断
-        if flag == 1 and smooth_energy[i] < TH:
+        # 左端点判断，距离前一个右端点距离远则加入
+        # 否则去掉这个左端点和前一个右端点，从上一个左端点重新计算，去除毛刺
+        elif flag == 0 and smooth_energy[i] >= TH and i-gap > endpointH[len(endpointH)-1]:
             endpointH.append(i)
+            flag = 1
+        elif flag == 0 and smooth_energy[i] >= TH and i-gap <= endpointH[len(endpointH)-1]:
+            endpointH = endpointH[:len(endpointH)-1]
+            flag = 1
+
+        # 右端点判断，检测帧长，太短则舍弃
+        if flag == 1 and smooth_energy[i] < TH:
+            if i - endpointH[len(endpointH)-1] <= gap:
+                endpointH = endpointH[:len(endpointH)-1]
+            else:
+                endpointH.append(i)
             flag = 0
 
     # 再利用较低能量门限 TL 扩展语音段
@@ -108,10 +120,26 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
 
         # 对左端点向左搜索
         else:
-            while i > 0 and smooth_zcr[i] >= T0:
+            while i > 0 and smooth_zcr[i] >= 3*T0:
                 i = i - 1
             endpoint0.append(i)
+    # 用于在VAD.detectEndPoint()中调试代码
+    # plt.subplot(3, 1, 1)
+    # plt.plot(np.arange(len(smooth_energy)), smooth_energy)
+    # for i in endpointH: plt.axvline(x=i, color='r')
+    # plt.axhline(y=TH, color='g')
 
+    # plt.subplot(3, 1, 2)
+    # plt.plot(np.arange(len(smooth_energy)), smooth_energy)
+    # for i in endpointL: plt.axvline(x=i, color='r')
+    # plt.axhline(y=TL, color='g')
+
+    # plt.subplot(3, 1, 3)
+    # for i in endpoint0: plt.axvline(x=i, color='r')
+    # plt.plot(np.arange(len(smooth_zcr)), smooth_zcr)
+    # plt.axhline(y=T0, color='g')
+
+    # plt.show()            
     return endpoint0
 
 def addWindow(wave_data, N, M, winfunc):
@@ -150,11 +178,14 @@ def readWav(filename):
     str_data = f.readframes(nframes)
 
     # 转成二字节数组形式（每个采样点占两个字节）
-    wave_data = np.fromstring(str_data, dtype=np.short)
+    if sampwidth == 1:
+        wave_data = np.fromstring(str_data, dtype=np.uint8)
+    elif sampwidth == 2:
+        wave_data = np.fromstring(str_data, dtype=np.short)
     wave_data = np.reshape(wave_data, [nframes, nchannels])  # 转化为向量形式
     if nchannels == 2:
         wave_data = np.mean(wave_data, axis=1).reshape([-1, 1])
-    print("采样点数目：" + str(len(wave_data)))  # 输出应为采样点数目
+    # print("采样点数目：" + str(len(wave_data)))  # 输出应为采样点数目
     f.close()
 
     return wave_data, params
@@ -173,13 +204,13 @@ def writeWav(store, person_identify, content, wave_data, endpoint, params, N, M,
     while i < len(endpoint):
         for s, e in np.array(endpoint, dtype=int).reshape([-1, 2]):
             d = []  # data, person, content, noisy
-            d.append(wave_data[s*inc: e*inc].reshape(-1))
+            d.append(wave_data[s*inc: e*inc].copy().reshape(-1))
             d.append(person_identify)
             d.append(content)
             d.append(has_noisy)
             store.append(d)
 
-        i = i + 2
+            i = i + 2
     return store
 
 def plot_wave(wave_data, endpoint, N, M):
@@ -193,7 +224,11 @@ def plot_wave(wave_data, endpoint, N, M):
     plt.show()
 
 def unzip(from_file, to_dir):
-    zip_file = zipfile.ZipFile(from_file)
+    try:
+        zip_file = zipfile.ZipFile(from_file)
+    except zipfile.BadZipFile:
+        print("error!!!")
+        return
     if not os.path.exists(to_dir):
         os.makedirs(to_dir)
     for f in zip_file.namelist():
