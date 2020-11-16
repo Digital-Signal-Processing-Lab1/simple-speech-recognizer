@@ -6,6 +6,7 @@ import utils
 import time
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy import signal
 
 class Window:
     def __init__(self):
@@ -106,9 +107,9 @@ class TestWindow(Window):
 
     def process_data(self):
         wave_data, params = VAD.readWav(self.filename)
-        winfunc = 1
         N, M = 256, 128
         inc = N - M
+        winfunc = signal.windows.hamming(N)
         source_fs = params[2]
         if source_fs != self.target_fs:
             wave_data = utils.resample(wave_data, source_fs, self.target_fs)
@@ -124,6 +125,8 @@ class TestWindow(Window):
             self.wave_data = wave_data.reshape([-1])
         else:
             self.wave_data = wave_data[int(endpoint[0]) * inc:int(endpoint[1]) * inc].reshape([-1])
+            self.error = False
+            self.error_message.set('None')
         VAD.plot_wave(wave_data, endpoint, N, M)
 
     def predict_and_show(self):
@@ -142,6 +145,6 @@ class TestWindow(Window):
 
 if __name__ == '__main__':
     w = TestWindow()
-    predictor = predictor.load_predictor("../time_domain_classificator/rect_predictor.pkl")
+    predictor = predictor.load_predictor("../time_domain_classificator/test_predictor.pkl")
     w.set_predictor(predictor)
     w.mainloop()
