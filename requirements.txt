@@ -2,5 +2,8 @@ scipy
 numpy
 matplotlib
 pandas
-torch
 sklearn
+torch
+seabornl
+librosa
+dtw-python
