@@ -178,11 +178,15 @@ def readWav(filename):
     str_data = f.readframes(nframes)
 
     # 转成二字节数组形式（每个采样点占两个字节）
-    wave_data = np.fromstring(str_data, dtype=np.short)
+    if sampwidth == 1:
+        wave_data = np.fromstring(str_data, dtype=np.uint8)
+        wave_data = wave_data.astype(int) - 128
+    elif sampwidth == 2:
+        wave_data = np.fromstring(str_data, dtype=np.short)
     wave_data = np.reshape(wave_data, [nframes, nchannels])  # 转化为向量形式
     if nchannels == 2:
         wave_data = np.mean(wave_data, axis=1).reshape([-1, 1])
-    print("采样点数目：" + str(len(wave_data)))  # 输出应为采样点数目
+    # print("采样点数目：" + str(len(wave_data)))  # 输出应为采样点数目
     f.close()
 
     return wave_data, params
