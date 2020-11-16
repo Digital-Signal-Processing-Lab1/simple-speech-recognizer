@@ -34,13 +34,11 @@ class Window:
 
         self.result_var = tkinter.StringVar()
         self.result_var.set('None')
-        tkinter.Label(root,text='predict result:').pack()
         result_label = tkinter.Label(root, textvariable=self.result_var)
         result_label.pack()
 
         self.error_message = tkinter.StringVar()
         self.error_message.set('None')
-        tkinter.Label(root, text='error message').pack()
         error_message = tkinter.Label(root, textvariable=self.error_message)
         error_message.pack()
         self.winmm = winmm
@@ -111,7 +109,7 @@ class TestWindow(Window):
         wave_data, params = VAD.readWav(self.filename)
         N, M = 256, 128
         inc = N - M
-        winfunc = signal.windows.hanning(N)
+        winfunc = signal.windows.hamming(N)
         source_fs = params[2]
         if source_fs != self.target_fs:
             wave_data = utils.resample(wave_data, source_fs, self.target_fs)
@@ -127,6 +125,8 @@ class TestWindow(Window):
             self.wave_data = wave_data.reshape([-1])
         else:
             self.wave_data = wave_data[int(endpoint[0]) * inc:int(endpoint[1]) * inc].reshape([-1])
+            self.error = False
+            self.error_message.set('None')
         VAD.plot_wave(wave_data, endpoint, N, M)
 
     def predict_and_show(self):
