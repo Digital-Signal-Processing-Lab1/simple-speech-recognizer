@@ -41,7 +41,7 @@ def calZeroCrossingRate(frames, N):
     """
     zerocrossingrate = []
     zerocrossingrate = np.sum(
-        np.abs(np.sign(frames[:, 1:N-1])-np.sign(frames[:, 0:N-2])), axis=1)
+        np.abs((frames[:, 1:N-1])-(frames[:, 0:N-2])), axis=1)
     return zerocrossingrate
 
 def detectEndPoint(wave_data, energy, zerocrossingrate):

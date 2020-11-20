@@ -2,7 +2,7 @@
 
 import sys
 # 注意在本机需要添加系统默认路径
-sys.path.append("./")
+sys.path.append(r"C:\Users\lenovo\simple-speech-recognizer")
 from sklearn import svm
 import sklearn.utils as su
 from sklearn.model_selection import train_test_split
@@ -18,7 +18,7 @@ import pickle
 import matplotlib.pyplot as plt
 
 N, M = 256, 128
-file_path = "./dataset/processed/"
+file_path = "../dataset/processed/"
 
 def raw_feature_pre(store, energy, amplitude, zerocrossingrate, label):
     d = []
@@ -51,7 +51,7 @@ def downsampling(array, dim):
         for i in range(dim):
             ret.append(array[i*inc])
         return np.array(ret)
-    else : return -1
+    else : return array
 
 def plot_classify_result(label, real, predict, filename):
     plt.figure(figsize=(8, 6))
@@ -159,6 +159,6 @@ for window_type in ["rect", "hamming", "hanning"]:
     print("r2 score :", r2)
     print("f1 score :", sm.f1_score(test, predict, average=None))
     print("plotting data...")
-    plot_classify_result(range(10), test, predict, "./td_svm_classifier/result_"+window_type+".png")
+    plot_classify_result(range(10), test, predict, "../td_svm_classifier/result_"+window_type+".png")
 
     print("done")
