@@ -18,6 +18,31 @@ def padding_zeros_to(data: pd.Series, length) -> np.ndarray:
     return ret
 
 
+def diff(a: np.ndarray, delta=1, axis=0) -> np.ndarray:
+    assert delta in [1,2]
+    if axis == 0:
+        tmp = a
+    else:
+        tmp = a.T
+
+    n, m = tmp.shape
+    ret = np.empty_like(tmp)
+    for i in range(n):
+        if i < delta:
+            ret[i] = tmp[i+1]-tmp[i]
+        elif i >= n-delta:
+            ret[i] = tmp[i] - tmp[i-1]
+        else:
+            ret[i] = tmp[i+1] - tmp[i-1]
+            if delta == 2:
+                ret[i] += (tmp[i+2] - tmp[i-2])
+                ret[i] /= 10
+            else:
+                ret[i] /= 2
+
+    return ret if axis == 0 else ret.T
+
+
 def padding_to_max(data: pd.Series) -> (np.ndarray, int):
     max_length = np.max([len(w) for w in data])
     ret = padding_zeros_to(data, max_length)
@@ -50,3 +75,5 @@ def plot_classify_result(label, real, predict, filename):
     plt.colorbar()
     plt.tight_layout()
     plt.savefig(filename, dpi=200)
+    plt.close()
+
