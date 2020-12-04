@@ -38,15 +38,10 @@ def calZeroCrossingRate(frames, N):
     """ 返回每一帧的短时过零率zerocrossrate
         frames: 帧信号矩阵
         N: 一帧采样点个数
-        T: 过滤低频
     """
-    TH = np.mean(np.abs(frames))
-    T = (np.mean(np.abs(frames[0])) + TH*4) / 4          
-
     zerocrossingrate = []
-    zerocrossingrate = np.mean(
-        np.abs(np.sign(frames[:, 1:N-1]-T)-np.sign(frames[:, 0:N-2]-T))+
-        np.abs(np.sign(frames[:, 1:N-1]+T)-np.sign(frames[:, 0:N-2]+T)), axis=1)
+    zerocrossingrate = np.sum(
+        np.abs((frames[:, 1:N-1])-(frames[:, 0:N-2])), axis=1)
     return zerocrossingrate
 
 def detectEndPoint(wave_data, energy, zerocrossingrate):
@@ -63,7 +58,7 @@ def detectEndPoint(wave_data, energy, zerocrossingrate):
     gap = int(len(wave_data)/20000)
     TH = np.mean(smooth_energy) / 4                                    # 较高能量门限
     TL = (np.mean(smooth_energy[:5]) / 5 + TH) / 4                # 较低能量门限
-    T0 = np.mean(smooth_zcr) / 4      # 过零率门限
+    T0 = np.mean(smooth_zcr) / 2      # 过零率门限
     endpointH = []  # 存储高能量门限 端点帧序号
     endpointL = []  # 存储低能量门限 端点帧序号
     endpoint0 = []  # 存储过零率门限 端点帧序号
@@ -178,15 +173,11 @@ def readWav(filename):
     str_data = f.readframes(nframes)
 
     # 转成二字节数组形式（每个采样点占两个字节）
-    if sampwidth == 1:
-        wave_data = np.fromstring(str_data, dtype=np.uint8)
-        wave_data = wave_data.astype(int) - 128
-    elif sampwidth == 2:
-        wave_data = np.fromstring(str_data, dtype=np.short)
+    wave_data = np.fromstring(str_data, dtype=np.short)
     wave_data = np.reshape(wave_data, [nframes, nchannels])  # 转化为向量形式
     if nchannels == 2:
         wave_data = np.mean(wave_data, axis=1).reshape([-1, 1])
-    # print("采样点数目：" + str(len(wave_data)))  # 输出应为采样点数目
+    print("采样点数目：" + str(len(wave_data)))  # 输出应为采样点数目
     f.close()
 
     return wave_data, params
